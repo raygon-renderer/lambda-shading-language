@@ -1,0 +1,3 @@
+[submodule "deps/inkwell"]
+	path = deps/inkwell
+	url = https://github.com/raygon-renderer/inkwell

@@ -1,0 +1,6 @@
+digit = { '0'..'9' }
+alpha = { 'a'..'z' | 'A'..'Z' }
+hexalpha = { 'a'..'f' | 'A'..'F' }
+
+hexdigit = { digit | hexalpha }
+hexnum = _{ "0x" ~ hexdigit+ }
