@@ -21,7 +21,10 @@ Hello, World!
 Testing
 "#;
 
-fn other(_x: f32, Test { a: y, b: _, c }: Test) {
+fn other(_x: f32, Test { a: y, b: Test {a, b, c}, c }: Test) {
+    let i: (i32, i32, i32, i32) = (1, 2, 3, 4);
+    let (a, mut b, c, d): (i32, i32, i32, i32) = i;
+
     // do something
 }
 
@@ -35,6 +38,7 @@ fn main() {
     };
 
     let b: i32 = x.a;
+    let c: f32 = -*x.c;
 }
 
 fn add(x: i32, y: i32) -> i32 {

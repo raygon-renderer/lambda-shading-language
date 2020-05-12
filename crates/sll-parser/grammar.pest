@@ -8,8 +8,11 @@ stmt                        = _{ terminated_stmt | if_expr | while_loop | for_lo
 terminated_stmt             = _{ (let_stmt | const_stmt | assign_stmt | function_call) ~ semicolon }
 
 const_stmt                  =  { "const" ~ ident ~ typespec ~ "=" ~ expr }
-let_stmt                    =  { "let" ~ (destructure | ident) ~ typespec ~ "=" ~ expr }
+let_stmt                    =  { "let" ~ binding ~ typespec ~ "=" ~ expr }
 assign_stmt                 =  { dereferenceable ~ assign_operator ~ expr }
+
+mutable                     =  { "mut" }
+binding                     = _{ destructure | (mutable? ~ ident) }
 
 destructure                 = _{ array_destructure | tuple_destructure | struct_destructure }
 dereferenceable             = _{ field_expr | array_index | ident }
@@ -47,7 +50,7 @@ code_block                  = _{ open_block ~ (definition | stmt)* ~ expr? ~ clo
 unsafe_code_block           = _{ unsafe_keyword? ~ code_block }
 function                    =  { "fn" ~ unsafe_keyword? ~ ident ~ function_args ~ function_return? ~ code_block }
 function_args               = _{ open_paren ~ (function_arg ~ comma)* ~ function_arg? ~ close_paren }
-function_arg                =  { (destructure | ident) ~ typespec }
+function_arg                =  { binding ~ typespec }
 function_return             =  { "->" ~ ty }
 unsafe_keyword              =  { "unsafe" }
 
@@ -85,12 +88,12 @@ array_lit                   =  { open_square ~ (expr ~ (comma ~ expr)*)? ~ close
 array_splat                 =  { open_square ~ expr ~ semicolon ~ integer ~ close_square }
 array_ty                    =  { open_square ~ ty   ~ semicolon ~ integer ~ close_square}
 array_index                 =  { accessible_expr ~ (open_square ~ expr ~ close_square)+ }
-array_destructure           =  { open_square ~ (ident ~ (comma ~ ident)*)? ~ close_square }
+array_destructure           =  { open_square ~ (binding ~ (comma ~ binding)*)? ~ close_square }
 
 /// Tuples
-tuple                       = _{ open_paren ~ (expr  ~ comma)+ ~ expr?  ~ close_paren }
-tuple_ty                    = _{ open_paren ~ (ty    ~ comma)+ ~ ty?    ~ close_paren }
-tuple_destructure           = _{ open_paren ~ (ident ~ comma)+ ~ ident? ~ close_paren }
+tuple                       = _{ open_paren ~ (expr    ~ comma)+ ~ expr?    ~ close_paren }
+tuple_ty                    = _{ open_paren ~ (ty      ~ comma)+ ~ ty?      ~ close_paren }
+tuple_destructure           = _{ open_paren ~ (binding ~ comma)+ ~ binding? ~ close_paren }
 
 /// Structs
 struct_field                =  { ident ~ colon ~ ty }
@@ -101,7 +104,7 @@ struct_construct_field      =  { ident ~ colon ~ expr }
 struct_construct_fields     = _{ (struct_construct_field ~ comma)* ~ struct_construct_field? }
 struct_construct_expr       =  { ident ~ open_block ~ struct_construct_fields ~ close_block }
 
-struct_destructure_field    =  { ident ~ (colon ~ ident)? }
+struct_destructure_field    =  { ident ~ (colon ~ binding)? }
 struct_destructure_fields   = _{ (struct_destructure_field ~ comma)* ~ struct_destructure_field? }
 struct_destructure          =  { ident ~ open_block ~ struct_destructure_fields ~ close_block }
 
