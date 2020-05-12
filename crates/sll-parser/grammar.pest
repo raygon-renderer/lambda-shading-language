@@ -117,10 +117,10 @@ open_paren                  = { "(" }
 close_paren                 = { ")" }
 
 /// Whitespace and Comments
-WHITESPACE                  = _{ (" " | "\t" | "\r" | "\n")+ }
+WHITESPACE                  = _{ (" " | "\t" | NEWLINE)+ }
 COMMENT                     = _{ comment_block | comment_line }
 comment_block               = @{ "/*" ~ (!"*/" ~ ANY)* ~ "*/" }
-comment_line                = @{ "//" ~ (!("\r" | "\n") ~ ANY)* }
+comment_line                = @{ "//" ~ (!NEWLINE ~ ANY)* }
 
 /// Numeric values
 decimal                     = ${ signed_integer+ ~ ("." ~ integer+)? ~ (^"e" ~ signed_integer)? }
