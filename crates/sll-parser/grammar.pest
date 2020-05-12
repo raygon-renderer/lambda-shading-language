@@ -1,54 +1,96 @@
 main                        = _{ SOI ~ definition* ~ EOI }
 
-definition                  = _{ struct_decl | function }
+definition                  = _{ struct_decl | function | global_statements }
+global_statements           = _{ (const_stmt) ~ semicolon }
 
 /// Statements
-stmt                        = _{ (let_stmt | assign_stmt | function_call) ~ semicolon }
+stmt                        = _{ terminated_stmt | if_expr | while_loop | for_loop }
+terminated_stmt             = _{ (let_stmt | const_stmt | assign_stmt | function_call) ~ semicolon }
 
-let_stmt                    = { "let" ~ ident ~ typespec ~ "=" ~ expr }
-assign_stmt                 = { dereferenceable ~ "=" ~ expr }
+const_stmt                  =  { "const" ~ ident ~ typespec ~ "=" ~ expr }
+let_stmt                    =  { "let" ~ (destructure | ident) ~ typespec ~ "=" ~ expr }
+assign_stmt                 =  { dereferenceable ~ assign_operator ~ expr }
 
+destructure                 = _{ array_destructure | tuple_destructure | struct_destructure }
 dereferenceable             = _{ field_expr | array_index | ident }
 
 /// Values and Types
-ident                       = @{ XID_START ~ XID_CONTINUE* }
-ty                          =  { ident | array_ty | tuple_ty }
+ident                       = @{ ("_" | XID_START) ~ XID_CONTINUE* }
+ty                          =  { array_ty | tuple_ty | ptr_ty | ident }
 typespec                    = _{ colon ~ ty }
+ptr_ty                      =  { "*mut" ~ ty }
 
-literal                     = _{ decimal | integer | boolean | array | tuple }
+literal                     = _{ decimal | integer | boolean | array | tuple | string }
+
+string                      = _{ string_single_line | raw_string }
+string_single_line          = _{ string_delimiter ~ string_content ~ string_delimiter }
+string_content              = ${ (string_escape | !(string_delimiter | "\\") ~ ANY)* }
+string_delimiter            = _{ "\"" }
+string_unicode              = _{ "u" ~ ASCII_HEX_DIGIT{4} }
+string_escape               = _{ "\\" ~ ("\"" | "\\" | "a" | "b" | "f" | "n" | "r" | "t" | "v" | string_unicode) }
+
+raw_string =                ${
+                                "r" ~ PUSH("#"*) ~ "\"" // push the number signs onto the stack
+                                ~ raw_string_interior
+                                ~ "\"" ~ POP            // match a quotation mark and the number signs
+                            }
+
+// unless the next character is a quotation mark
+// followed by the correct amount of number signs,
+// consume one character
+raw_string_interior =       @{ (!("\"" ~ PEEK) ~ ANY)* }
 
 /// Functions
 
 // A code block is simply a sequence of statements with an optional expression at the end
 code_block                  = _{ open_block ~ (definition | stmt)* ~ expr? ~ close_block }
-function                    =  { "fn" ~ ident ~ function_args ~ function_return? ~ code_block }
+unsafe_code_block           = _{ unsafe_keyword? ~ code_block }
+function                    =  { "fn" ~ unsafe_keyword? ~ ident ~ function_args ~ function_return? ~ code_block }
 function_args               = _{ open_paren ~ (function_arg ~ comma)* ~ function_arg? ~ close_paren }
-function_arg                = _{ ident ~ typespec }
-function_return             = _{ "->" ~ ty }
+function_arg                =  { (destructure | ident) ~ typespec }
+function_return             =  { "->" ~ ty }
+unsafe_keyword              =  { "unsafe" }
 
-function_call               = _{ ident ~ open_paren ~ (expr ~ comma)* ~ expr? ~ close_paren }
+function_call               =  { ident ~ open_paren ~ (expr ~ comma)* ~ expr? ~ close_paren }
 
 /// Expressions
-expr                        = _{ infix | inner_expr }
+expr                        = _{ cast_expr | basic_expr }
+basic_expr                  = _{ infix | inner_expr }
 
 inner_expr                  = _{ array_index | accessible_expr }
 // expressions which can be accessed via array indexing
-accessible_expr             = _{ prefix | function_call | braced_expr | literal | code_block | struct_construct_expr | field_expr | ident }
+accessible_expr             = _{ braced_expr | unsafe_code_block | prefix | function_call | if_expr | struct_construct_expr | field_expr | literal | ident }
+
+cast_expr                   =  { basic_expr ~ ("as" ~ ty)+ }
 
 braced_expr                 = _{ open_paren ~ expr ~ close_paren }
-field_expr                  =  { ident ~ ("." ~ ident)+ } // x.y.z.w.etc
+field_ident                 = _{ ident | ASCII_DIGIT }
+field_expr                  =  { ident ~ ("." ~ field_ident)+ } // x.0.y.z.w.etc
 
 prefix                      =  { unary_operator ~ expr }
 infix                       =  { inner_expr ~ (binary_operator ~ inner_expr)+ }
 
+/// Conditionals
+if_expr                     =  { "if" ~ expr ~ code_block ~ if_else? }
+if_else                     =  { "else" ~ (if_expr | code_block)}
+
+/// Loops
+loop_label                  =  { "'" ~ ident }
+while_loop                  =  { loop_label? ~ "while"              ~ expr ~ code_block }
+for_loop                    =  { loop_label? ~ "for" ~ ident ~ "in" ~ expr ~ code_block }
+
 /// Arrays
-array                       = _{ open_square ~ (expr ~ (comma ~ expr)*)? ~ close_square }
-array_ty                    = _{ open_square ~ ty ~ semicolon ~ integer ~ close_square}
-array_index                 = _{ accessible_expr ~ (open_square ~ expr ~ close_square)+ }
+array                       = _{ array_lit | array_splat }
+array_lit                   =  { open_square ~ (expr ~ (comma ~ expr)*)? ~ close_square }
+array_splat                 =  { open_square ~ expr ~ semicolon ~ integer ~ close_square }
+array_ty                    =  { open_square ~ ty   ~ semicolon ~ integer ~ close_square}
+array_index                 =  { accessible_expr ~ (open_square ~ expr ~ close_square)+ }
+array_destructure           =  { open_square ~ (ident ~ (comma ~ ident)*)? ~ close_square }
 
 /// Tuples
-tuple                       = _{ open_paren ~ (expr ~ comma)+ ~ expr? ~ close_paren }
-tuple_ty                    = _{ open_paren ~ (ty   ~ comma)+ ~ ty?   ~ close_paren }
+tuple                       = _{ open_paren ~ (expr  ~ comma)+ ~ expr?  ~ close_paren }
+tuple_ty                    = _{ open_paren ~ (ty    ~ comma)+ ~ ty?    ~ close_paren }
+tuple_destructure           = _{ open_paren ~ (ident ~ comma)+ ~ ident? ~ close_paren }
 
 /// Structs
 struct_field                =  { ident ~ colon ~ ty }
@@ -56,8 +98,12 @@ struct_fields               = _{ (struct_field ~ comma)* ~ struct_field? }
 struct_decl                 =  { "struct" ~ ident ~ open_block ~ struct_fields ~ close_block }
 
 struct_construct_field      =  { ident ~ colon ~ expr }
-struct_construct_fields     = _{ (struct_construct_field ~ comma)* ~ struct_construct_field }
+struct_construct_fields     = _{ (struct_construct_field ~ comma)* ~ struct_construct_field? }
 struct_construct_expr       =  { ident ~ open_block ~ struct_construct_fields ~ close_block }
+
+struct_destructure_field    =  { ident ~ (colon ~ ident)? }
+struct_destructure_fields   = _{ (struct_destructure_field ~ comma)* ~ struct_destructure_field? }
+struct_destructure          =  { ident ~ open_block ~ struct_destructure_fields ~ close_block }
 
 /// Basic symbols
 colon                       = { ":" }
@@ -88,6 +134,8 @@ hexinteger                  = @{ ^"0x" ~ ASCII_HEX_DIGIT+ }
 octalinteger                = @{ ^"0o" ~ ASCII_OCT_DIGIT+ }
 
 /// Operators
+reference                   =  { "&" }
+dereference                 =  { "*" }
 multiply                    =  { "*" }
 divide                      =  { "/" }
 modulus                     =  { "%" }
@@ -108,19 +156,27 @@ bitwise_and                 =  { "&" }
 bitwise_or                  =  { "|" }
 bitwise_xor                 =  { "^" }
 assign                      =  { "=" }
+range                       =  { ".." }
 
-unary_operator              = _{ plus | minus | logical_not }
+unary_operator              = _{ reference | dereference | plus | minus | logical_not }
 binary_operator             = _{
-                                 multiply | divide | modulus |
-                                 plus | minus |
-                                 shift_left | shift_right |
-                                 less_than_or_equal | less_than |
-                                 greater_than_or_equal | greater_than |
-                                 not_equal | equal |
-                                 logical_and | logical_or |
-                                 bitwise_and | bitwise_or | bitwise_xor
+                                    multiply | divide | modulus |
+                                    plus | minus |
+                                    shift_left | shift_right |
+                                    less_than_or_equal | less_than |
+                                    greater_than_or_equal | greater_than |
+                                    not_equal | equal |
+                                    logical_and | logical_or |
+                                    bitwise_and | bitwise_or | bitwise_xor |
+                                    range
                                }
 
+assign_operator             =  {(
+                                    multiply | divide | modulus |
+                                    plus | minus |
+                                    shift_left | shift_right |
+                                    bitwise_and | bitwise_or | bitwise_xor
+                               )? ~ "="}
 
 /// Boolean literal
 boolean                     =  { boolean_true | boolean_false }
