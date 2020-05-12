@@ -32,7 +32,7 @@ string_delimiter            = _{ "\"" }
 string_unicode              = _{ "u" ~ ASCII_HEX_DIGIT{4} }
 string_escape               = _{ "\\" ~ ("\"" | "\\" | "a" | "b" | "f" | "n" | "r" | "t" | "v" | string_unicode) }
 
-raw_string =                ${
+raw_string                  = ${
                                 "r" ~ PUSH("#"*) ~ "\"" // push the number signs onto the stack
                                 ~ raw_string_interior
                                 ~ "\"" ~ POP            // match a quotation mark and the number signs
@@ -41,7 +41,7 @@ raw_string =                ${
 // unless the next character is a quotation mark
 // followed by the correct amount of number signs,
 // consume one character
-raw_string_interior =       @{ (!("\"" ~ PEEK) ~ ANY)* }
+raw_string_interior         = @{ (!("\"" ~ PEEK) ~ ANY)* }
 
 /// Functions
 
