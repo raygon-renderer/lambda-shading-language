@@ -3,7 +3,7 @@ file                        = _{ SOI ~ item* ~ EOI }
 item                        =  { struct_decl | function | const_item }
 const_item                  =  { const_keyword ~ ident ~ typespec ~ assign ~ expr ~ semicolon }
 
-ident                       = @{ (XID_START | "_" | "$") ~ XID_CONTINUE* }
+ident                       = @{ (XID_START | low_line | "$") ~ XID_CONTINUE* }
 
 /// Whitespace and Comments
 WHITESPACE                  = _{ (" " | "\t" | NEWLINE)+ }
@@ -32,7 +32,7 @@ binding                     =  { destructure | (mut_keyword? ~ ident) }
 destructure                 = _{ array_destructure | tuple_destructure | struct_destructure }
 
 /// Types
-typespec                    = _{ colon ~ ty }
+typespec                    =  { colon ~ ty }
 
 ty                          = _{ array_ty | tuple_ty | ptr_ty | ident }
 ptr_ty                      =  { dereference ~ (const_keyword | mut_keyword) ~ ty }
@@ -58,7 +58,7 @@ local                       =  { let_leyword ~ binding ~ typespec ~ (assign ~ ex
 /// Expressions
 dereferenceable             = _{ accessor_expr | ident }
 
-expr                        = _{ cast_expr | assign_expr | return_expr | while_loop | for_loop | basic_expr }
+expr                        =  { cast_expr | assign_expr | return_expr | while_loop | for_loop | basic_expr }
 
 basic_expr                  = _{ infix | inner_expr }
 
@@ -113,7 +113,7 @@ tuple_ty                    =  { open_paren ~ (ty      ~ comma)+ ~ ty?      ~ cl
 tuple_destructure           =  { open_paren ~ (binding ~ comma)+ ~ binding? ~ close_paren }
 
 /// Structs
-struct_field                =  { ident ~ colon ~ ty }
+struct_field                =  { ident ~ typespec }
 struct_fields               = _{ (struct_field ~ comma)* ~ struct_field? }
 struct_decl                 =  { struct_keyword ~ ident ~ open_block ~ struct_fields ~ close_block }
 
@@ -135,9 +135,10 @@ open_square                 = { "[" }
 close_square                = { "]" }
 open_paren                  = { "(" }
 close_paren                 = { ")" }
+low_line                    = { "_" }
 
 /// Literal values
-literal                     = _{ decimal | integer | boolean | string }
+literal                     =  { float | signed_integer | boolean | string }
 
 string                      = _{ string_single_line | raw_string }
 string_single_line          = _{ string_delimiter ~ string_content ~ string_delimiter }
@@ -156,15 +157,15 @@ raw_string                  = ${
 // consume one character
 raw_string_interior         = @{ (!("\"" ~ PEEK) ~ ANY)* }
 
-decimal                     = ${ signed_integer+ ~ ("." ~ integer+)? ~ (^"e" ~ signed_integer)? }
+float                       = @{ signed_integer+ ~ "." ~ integer+ ~ (^"e" ~ signed_integer+)? }
 
-signed_integer              =  { (plus | minus)? ~ integer }
-integer                     = ${ hexinteger | binaryinteger | octalinteger | decinteger }
+signed_integer              = _{ (plus | minus)? ~ integer }
+integer                     = _{ hexinteger | bininteger | octinteger | decinteger }
 
-decinteger                  = @{ ASCII_DIGIT+ }
-binaryinteger               = @{ ^"0b" ~ ASCII_BIN_DIGIT+ }
-hexinteger                  = @{ ^"0x" ~ ASCII_HEX_DIGIT+ }
-octalinteger                = @{ ^"0o" ~ ASCII_OCT_DIGIT+ }
+decinteger                  = @{         (ASCII_DIGIT     | low_line)+ }
+bininteger                  = @{ ^"0b" ~ (ASCII_BIN_DIGIT | low_line)+ }
+hexinteger                  = @{ ^"0x" ~ (ASCII_HEX_DIGIT | low_line)+ }
+octinteger                  = @{ ^"0o" ~ (ASCII_OCT_DIGIT | low_line)+ }
 
 boolean                     =  { boolean_true | boolean_false }
 boolean_true                =  { "true" }
