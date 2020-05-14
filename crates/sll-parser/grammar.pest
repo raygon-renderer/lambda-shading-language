@@ -63,31 +63,30 @@ expr                        = _{ cast_expr | assign_expr | return_expr | while_l
 basic_expr                  = _{ infix | inner_expr }
 
 inner_expr                  = _{ accessor_expr | accessible_expr }
-// expressions which can be accessed via array indexing
+// expressions which can be accessed via array indexing or field access
 accessible_expr             = _{
                                   braced_expr
                                 | unsafe_code_block
-                                | prefix
                                 | function_call
                                 | if_expr
                                 | struct_construct_expr
                                 | array
                                 | tuple
+                                | prefix
                                 | literal
                                 | ident
                             }
 
 cast_expr                   =  { basic_expr ~ (as_keyword ~ ty)+ }
+prefix                      =  { unary_operator ~ inner_expr }
+infix                       =  { inner_expr ~ (binary_operator ~ inner_expr)+ }
 
 braced_expr                 =  { open_paren ~ expr ~ close_paren }
 
-field_access                =  { "." ~ (ident | ASCII_DIGIT) }
+field_access                =  { "." ~ (ident | decinteger) }
 array_access                =  { open_square ~ expr ~ close_square }
 
 accessor_expr               =  { accessible_expr ~ (field_access | array_access)+} // x.0.y[1].z[4].w.etc
-
-prefix                      =  { unary_operator ~ expr }
-infix                       =  { inner_expr ~ (binary_operator ~ inner_expr)+ }
 
 return_expr                 =  { return_keyword ~ expr }
 assign_expr                 =  { dereferenceable ~ assign_operator ~ expr }
