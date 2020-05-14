@@ -1,12 +1,7 @@
-extern crate pest;
-#[macro_use]
-extern crate pest_derive;
-
+#[allow(unused)]
 use pest::Parser;
 
-#[derive(Parser)]
-#[grammar = "../grammar.pest"]
-pub struct GrammarParser;
+use sll_parser::ast::parse;
 
 fn main() {
     let test = r##"
@@ -65,11 +60,20 @@ fn add(x: i32, y: i32) -> i32 {
 
     other(z + 5);
 
+    let = true;
+
+    let x = t.0[0].t[5].y[1+4];
+
+
     z + 1
 }
 "##;
 
-    let parsed = GrammarParser::parse(Rule::main, test);
+    let test2 = r##"
+    unsafe fn test(mut x: i32, (mut y,): (u32,)) -> i32 {
 
-    println!("{:#?}", parsed);
+    }
+    "##;
+
+    println!("{:#?}", parse(test2).unwrap());
 }
