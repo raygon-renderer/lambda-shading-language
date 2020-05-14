@@ -1,70 +1,68 @@
 file                        = _{ SOI ~ item* ~ EOI }
 
-item                        = _{ struct_decl | function | global_statements }
-global_statements           = _{ (const_stmt) ~ semicolon }
+item                        =  { struct_decl | function | const_item }
+const_item                  =  { const_keyword ~ ident ~ typespec ~ assign ~ expr ~ semicolon }
 
-/// Statements
-stmt                        = _{ terminated_stmt | if_expr | while_loop | for_loop | unsafe_code_block }
-terminated_stmt             = _{ (let_stmt | const_stmt | assign_stmt | function_call | return_stmt) ~ semicolon }
+ident                       = @{ (XID_START | "_" | "$") ~ XID_CONTINUE* }
 
-const_stmt                  =  { "const" ~ ident ~ typespec ~  "=" ~ expr   }
-let_stmt                    =  { "let" ~ binding ~ typespec ~ ("=" ~ expr)? }
-return_stmt                 =  { "return" ~ expr }
-assign_stmt                 =  { dereferenceable ~ assign_operator ~ expr }
+/// Whitespace and Comments
+WHITESPACE                  = _{ (" " | "\t" | NEWLINE)+ }
+COMMENT                     = _{ comment_block | comment_line }
+comment_block               = @{ "/*" ~ (!"*/" ~ ANY)* ~ "*/" }
+comment_line                = @{ "//" ~ (!NEWLINE ~ ANY)* }
 
-mutable                     =  { "mut" }
-binding                     =  { destructure | (mutable? ~ ident) }
+/// Keywords
+let_leyword                 =  { "let" }
+mut_keyword                 =  { "mut" }
+const_keyword               =  { "const" }
+return_keyword              =  { "return" }
+unsafe_keyword              =  { "unsafe" }
+if_keyword                  =  { "if" }
+else_keyword                =  { "else" }
+while_keyword               =  { "while" }
+for_keyword                 =  { "for" }
+in_keyword                  =  { "in" }
+fn_keyword                  =  { "fn" }
+as_keyword                  =  { "as" }
+struct_keyword              =  { "struct" }
+
+/// Bindings and accesses
+binding                     =  { destructure | (mut_keyword? ~ ident) }
 
 destructure                 = _{ array_destructure | tuple_destructure | struct_destructure }
-dereferenceable             = _{ field_expr | array_index | ident }
 
-/// Values and Types
-ident                       = @{ ("_" | XID_START) ~ XID_CONTINUE* }
-
+/// Types
 typespec                    = _{ colon ~ ty }
+
 ty                          = _{ array_ty | tuple_ty | ptr_ty | ident }
-ptr_ty                      = _{ mut_ptr | const_ptr }
-mut_ptr                     =  { "*mut"   ~ ty }
-const_ptr                   =  { "*const" ~ ty }
-
-literal                     = _{ decimal | integer | boolean | string }
-
-string                      = _{ string_single_line | raw_string }
-string_single_line          = _{ string_delimiter ~ string_content ~ string_delimiter }
-string_content              = ${ (string_escape | !(string_delimiter | "\\") ~ ANY)* }
-string_delimiter            = _{ "\"" }
-string_unicode              = _{ "u" ~ ASCII_HEX_DIGIT{4} }
-string_escape               = _{ "\\" ~ ("\"" | "\\" | "a" | "b" | "f" | "n" | "r" | "t" | "v" | string_unicode) }
-
-raw_string                  = ${
-                                "r" ~ PUSH("#"*) ~ "\"" // push the number signs onto the stack
-                                ~ raw_string_interior
-                                ~ "\"" ~ POP            // match a quotation mark and the number signs
-                            }
-
-// unless the next character is a quotation mark
-// followed by the correct amount of number signs,
-// consume one character
-raw_string_interior         = @{ (!("\"" ~ PEEK) ~ ANY)* }
+ptr_ty                      =  { dereference ~ (const_keyword | mut_keyword) ~ ty }
 
 /// Functions
 
 // A code block is simply a sequence of statements with an optional expression at the end
-code_block                  =  { open_block ~ (item | stmt)* ~ expr? ~ close_block }
+code_block                  =  { open_block ~ stmt* ~ close_block }
 unsafe_code_block           =  { unsafe_keyword? ~ code_block }
-function                    =  { "fn" ~ unsafe_keyword? ~ ident ~ function_args ~ function_return? ~ code_block }
+
+function                    =  { unsafe_keyword? ~ fn_keyword ~ ident ~ function_args ~ function_return? ~ code_block }
 function_args               = _{ open_paren ~ (function_arg ~ comma)* ~ function_arg? ~ close_paren }
 function_arg                =  { binding ~ typespec }
 function_return             =  { "->" ~ ty }
-unsafe_keyword              =  { "unsafe" }
 
 function_call               =  { ident ~ open_paren ~ (expr ~ comma)* ~ expr? ~ close_paren }
 
-/// Expressions
-expr                        = _{ cast_expr | basic_expr }
-basic_expr                  = _{ infix     | inner_expr }
+/// Statements
+stmt                        = _{ item | local | (expr ~ semicolon?) }
 
-inner_expr                  = _{ array_index | accessible_expr }
+local                       =  { let_leyword ~ binding ~ typespec ~ (assign ~ expr)? ~ semicolon }
+
+/// Expressions
+dereferenceable             = _{ accessor_expr | ident }
+
+expr                        = _{ cast_expr | assign_expr | return_expr | while_loop | for_loop | basic_expr }
+
+basic_expr                  = _{ infix | inner_expr }
+
+inner_expr                  = _{ accessor_expr | accessible_expr }
 // expressions which can be accessed via array indexing
 accessible_expr             = _{
                                   braced_expr
@@ -73,38 +71,42 @@ accessible_expr             = _{
                                 | function_call
                                 | if_expr
                                 | struct_construct_expr
-                                | field_expr
                                 | array
                                 | tuple
                                 | literal
                                 | ident
                             }
 
-cast_expr                   =  { basic_expr ~ ("as" ~ ty)+ }
+cast_expr                   =  { basic_expr ~ (as_keyword ~ ty)+ }
 
-braced_expr                 = _{ open_paren ~ expr ~ close_paren }
-field_ident                 = _{ ident | ASCII_DIGIT }
-field_expr                  =  { ident ~ ("." ~ field_ident)+ } // x.0.y.z.w.etc
+braced_expr                 =  { open_paren ~ expr ~ close_paren }
+
+field_access                =  { "." ~ (ident | ASCII_DIGIT) }
+array_access                =  { open_square ~ expr ~ close_square }
+
+accessor_expr               =  { accessible_expr ~ (field_access | array_access)+} // x.0.y[1].z[4].w.etc
 
 prefix                      =  { unary_operator ~ expr }
 infix                       =  { inner_expr ~ (binary_operator ~ inner_expr)+ }
 
+return_expr                 =  { return_keyword ~ expr }
+assign_expr                 =  { dereferenceable ~ assign_operator ~ expr }
+
 /// Conditionals
-if_expr                     =  { "if" ~ expr ~ code_block ~ if_else? }
-if_else                     =  { "else" ~ (if_expr | code_block)}
+if_expr                     =  { if_keyword ~ expr ~ code_block ~ if_else? }
+if_else                     =  { else_keyword ~ (if_expr | code_block)}
 
 /// Loops
 loop_label                  =  { "'" ~ ident }
-while_loop                  =  { loop_label? ~ "while"              ~ expr ~ code_block }
-for_loop                    =  { loop_label? ~ "for" ~ ident ~ "in" ~ expr ~ code_block }
+while_loop                  =  { loop_label? ~ while_keyword                    ~ expr ~ code_block }
+for_loop                    =  { loop_label? ~ for_keyword ~ ident ~ in_keyword ~ expr ~ code_block }
 
 /// Arrays
 array                       = _{ array_lit | array_splat }
-array_lit                   =  { open_square ~ (expr ~ (comma ~ expr)*)? ~ close_square }
-array_splat                 =  { open_square ~ expr ~ semicolon ~ expr ~ close_square }
-array_ty                    =  { open_square ~ ty   ~ semicolon ~ expr ~ close_square }
-array_index                 =  { accessible_expr ~ (open_square ~ expr ~ close_square)+ }
-array_destructure           =  { open_square ~ (binding ~ (comma ~ binding)*)? ~ close_square }
+array_lit                   =  { open_square ~ (expr ~ (comma ~ expr)*)?     ~ close_square }
+array_splat                 =  { open_square ~ expr ~ semicolon ~ expr       ~ close_square }
+array_ty                    =  { open_square ~ ty   ~ semicolon ~ expr       ~ close_square }
+array_destructure           =  { open_square ~ (binding ~ comma)+ ~ binding? ~ close_square }
 
 /// Tuples
 tuple                       =  { open_paren ~ (expr    ~ comma)+ ~ expr?    ~ close_paren }
@@ -114,7 +116,7 @@ tuple_destructure           =  { open_paren ~ (binding ~ comma)+ ~ binding? ~ cl
 /// Structs
 struct_field                =  { ident ~ colon ~ ty }
 struct_fields               = _{ (struct_field ~ comma)* ~ struct_field? }
-struct_decl                 =  { "struct" ~ ident ~ open_block ~ struct_fields ~ close_block }
+struct_decl                 =  { struct_keyword ~ ident ~ open_block ~ struct_fields ~ close_block }
 
 struct_construct_field      =  { ident ~ colon ~ expr }
 struct_construct_fields     = _{ (struct_construct_field ~ comma)* ~ struct_construct_field? }
@@ -135,16 +137,29 @@ close_square                = { "]" }
 open_paren                  = { "(" }
 close_paren                 = { ")" }
 
-/// Whitespace and Comments
-WHITESPACE                  = _{ (" " | "\t" | NEWLINE)+ }
-COMMENT                     = _{ comment_block | comment_line }
-comment_block               = @{ "/*" ~ (!"*/" ~ ANY)* ~ "*/" }
-comment_line                = @{ "//" ~ (!NEWLINE ~ ANY)* }
+/// Literal values
+literal                     = _{ decimal | integer | boolean | string }
 
-/// Numeric values
+string                      = _{ string_single_line | raw_string }
+string_single_line          = _{ string_delimiter ~ string_content ~ string_delimiter }
+string_content              = ${ (string_escape | !(string_delimiter | "\\") ~ ANY)* }
+string_delimiter            = _{ "\"" }
+string_unicode              = _{ "u" ~ ASCII_HEX_DIGIT{4} }
+string_escape               = _{ "\\" ~ ("\"" | "\\" | "a" | "b" | "f" | "n" | "r" | "t" | "v" | string_unicode) }
+
+raw_string                  = ${
+                                "r" ~ PUSH("#"*) ~ "\"" // push the number signs onto the stack
+                                ~ raw_string_interior
+                                ~ "\"" ~ POP            // match a quotation mark and the number signs
+                            }
+// unless the next character is a quotation mark
+// followed by the correct amount of number signs,
+// consume one character
+raw_string_interior         = @{ (!("\"" ~ PEEK) ~ ANY)* }
+
 decimal                     = ${ signed_integer+ ~ ("." ~ integer+)? ~ (^"e" ~ signed_integer)? }
 
-signed_integer              =  { "-"? ~ integer }
+signed_integer              =  { (plus | minus)? ~ integer }
 integer                     = ${ hexinteger | binaryinteger | octalinteger | decinteger }
 
 decinteger                  = @{ ASCII_DIGIT+ }
@@ -152,8 +167,12 @@ binaryinteger               = @{ ^"0b" ~ ASCII_BIN_DIGIT+ }
 hexinteger                  = @{ ^"0x" ~ ASCII_HEX_DIGIT+ }
 octalinteger                = @{ ^"0o" ~ ASCII_OCT_DIGIT+ }
 
+boolean                     =  { boolean_true | boolean_false }
+boolean_true                =  { "true" }
+boolean_false               =  { "false" }
+
 /// Operators
-reference                   =  { "&" ~ mutable? }
+reference                   =  { "&" ~ mut_keyword? }
 dereference                 =  { "*" }
 multiply                    =  { "*" }
 divide                      =  { "/" }
@@ -197,7 +216,3 @@ assign_operator             =  {(
                                 bitwise_and | bitwise_or | bitwise_xor
                             )? ~ "="}
 
-/// Boolean literal
-boolean                     =  { boolean_true | boolean_false }
-boolean_true                =  { "true" }
-boolean_false               =  { "false" }
