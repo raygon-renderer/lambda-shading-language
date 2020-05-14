@@ -29,10 +29,10 @@ struct_keyword              =  { "struct" }
 /// Bindings and accesses
 binding                     =  { destructure | (mut_keyword? ~ ident) }
 
-destructure                 = _{ array_destructure | tuple_destructure | struct_destructure }
+destructure                 =  { array_destructure | tuple_destructure | struct_destructure }
 
 /// Types
-typespec                    =  { colon ~ ty }
+typespec                    = _{ colon ~ ty }
 
 ty                          = _{ array_ty | tuple_ty | ptr_ty | ident }
 ptr_ty                      =  { dereference ~ (const_keyword | mut_keyword) ~ ty }
@@ -53,7 +53,7 @@ function_call               =  { ident ~ open_paren ~ (expr ~ comma)* ~ expr? ~ 
 /// Statements
 stmt                        = _{ item | local | (expr ~ semicolon?) }
 
-local                       =  { let_leyword ~ binding ~ typespec ~ (assign ~ expr)? ~ semicolon }
+local                       =  { let_leyword ~ binding ~ typespec? ~ (assign ~ expr)? ~ semicolon }
 
 /// Expressions
 dereferenceable             = _{ accessor_expr | ident }
@@ -126,16 +126,16 @@ struct_destructure_fields   = _{ (struct_destructure_field ~ comma)* ~ struct_de
 struct_destructure          =  { ident ~ open_block ~ struct_destructure_fields ~ close_block }
 
 /// Basic symbols
-colon                       = { ":" }
-semicolon                   = { ";" }
-comma                       = { "," }
-open_block                  = { "{" }
-close_block                 = { "}" }
-open_square                 = { "[" }
-close_square                = { "]" }
-open_paren                  = { "(" }
-close_paren                 = { ")" }
-low_line                    = { "_" }
+colon                       = _{ ":" }
+semicolon                   = _{ ";" }
+comma                       = _{ "," }
+open_block                  = _{ "{" }
+close_block                 = _{ "}" }
+open_square                 = _{ "[" }
+close_square                = _{ "]" }
+open_paren                  = _{ "(" }
+close_paren                 = _{ ")" }
+low_line                    = _{ "_" }
 
 /// Literal values
 literal                     =  { float | signed_integer | boolean | string }
@@ -167,7 +167,7 @@ bininteger                  = @{ ^"0b" ~ (ASCII_BIN_DIGIT | low_line)+ }
 hexinteger                  = @{ ^"0x" ~ (ASCII_HEX_DIGIT | low_line)+ }
 octinteger                  = @{ ^"0o" ~ (ASCII_OCT_DIGIT | low_line)+ }
 
-boolean                     =  { boolean_true | boolean_false }
+boolean                     = _{ boolean_true | boolean_false }
 boolean_true                =  { "true" }
 boolean_false               =  { "false" }
 
