@@ -18,9 +18,6 @@ pub use self::{
     structure::*, types::*, unary_op::*,
 };
 
-pub(crate) use crate::error::{ParseError, ParseResult};
-pub(crate) use crate::iterators::PairsExt;
-
 pub(crate) use pest::{
     error::Error,
     iterators::{Pair, Pairs},
@@ -28,7 +25,11 @@ pub(crate) use pest::{
     Parser,
 };
 
-pub(crate) use crate::{Grammar, Rule};
+pub(crate) use crate::{
+    error::{ParseError, ParseResult},
+    iterators::PairsExt,
+    Grammar, Rule,
+};
 
 #[derive(Debug, Clone)]
 pub struct File {
@@ -41,7 +42,7 @@ pub fn parse(file: &str) -> ParseResult<File> {
     for pair in Grammar::parse(Rule::file, file)? {
         items.push(match pair.as_rule() {
             Rule::item => item(pair)?,
-            Rule::EOI => continue,
+            Rule::EOI => break,
             _ => return Err(ParseError::UnexpectedToken(pair)),
         });
     }
