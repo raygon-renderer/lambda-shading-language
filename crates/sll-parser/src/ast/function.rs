@@ -24,18 +24,16 @@ pub fn function_item(item: Pair<Rule>) -> ParseResult<Function> {
     for pair in item.into_inner() {
         match pair.as_rule() {
             Rule::unsafe_keyword => is_unsafe = true,
-            Rule::fn_keyword => {}
             Rule::ident => name = ident(pair),
             Rule::function_arg => {
                 let mut arg = pair.into_inner();
                 let binding = binding(arg.next_token()?)?;
-                let ty = ty(arg.next_token()?)?;
+                let ty = typespec(arg.next_token()?)?;
 
                 args.push(FunctionArgs { binding, ty });
             }
             Rule::function_return => {
-                println!("{:#?}", pair);
-                ret = Some(ty(pair.into_inner().next_token()?)?);
+                ret = Some(typespec(pair.into_inner().next_token()?)?);
             }
             Rule::code_block => code = code_block(pair),
             _ => return Err(ParseError::UnexpectedToken(pair)),

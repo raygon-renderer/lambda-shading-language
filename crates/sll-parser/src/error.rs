@@ -14,6 +14,12 @@ pub enum ParseError<'i> {
     #[error("Missing token when converting to AST")]
     MissingToken,
 
-    #[error("Unespected token when converting to AST: {0:?}")]
+    #[error("Unexpected token when converting to AST: {0:?}")]
     UnexpectedToken(pest::iterators::Pair<'i, Rule>),
+
+    #[error("Could not parse integer")]
+    ParseIntError(#[from] std::num::ParseIntError),
+
+    #[error("Could not parse float")]
+    ParseFloatError(#[from] std::num::ParseFloatError),
 }

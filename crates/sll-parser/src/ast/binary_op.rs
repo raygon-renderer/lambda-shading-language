@@ -50,12 +50,11 @@ pub fn infix(pair: Pair<Rule>) -> ParseResult<Expression> {
         pair.into_inner(),
         |pair| expr(pair),
         |lhs: ParseResult<Expression>, op: Pair<Rule>, rhs: ParseResult<Expression>| {
-            let lhs = lhs?;
-            let rhs = rhs?;
-
-            let op = binary_op(op)?;
-
-            Ok(Expression::Binary(Box::new(lhs), op, Box::new(rhs)))
+            Ok(Expression::Binary {
+                lhs: Box::new(lhs?),
+                op: binary_op(op)?,
+                rhs: Box::new(rhs?),
+            })
         },
     )
 }

@@ -1,4 +1,5 @@
-#[allow(unused)]
+#![allow(unused)]
+
 use pest::Parser;
 
 use sll_parser::ast::parse;
@@ -70,8 +71,12 @@ fn add(x: i32, y: i32) -> i32 {
 "##;
 
     let test2 = r##"
-    unsafe fn test(mut x: i32, (mut y,): (u32,)) -> i32 {
+    const TEST: *const u32 = 1 + 0xF1;
 
+    unsafe fn test(mut x: i32, Test {x: mut i, k}: (u32,)) -> i32 {
+        let mut x: i32 = 10;
+
+        x.0[0-1].x += 10;
     }
     "##;
 

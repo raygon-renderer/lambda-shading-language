@@ -3,7 +3,7 @@ file                        = _{ SOI ~ item* ~ EOI }
 item                        =  { struct_decl | function | const_item }
 const_item                  =  { const_keyword ~ ident ~ typespec ~ assign ~ expr ~ semicolon }
 
-ident                       = @{ (XID_START | low_line | "$") ~ XID_CONTINUE* }
+ident                       = @{ (XID_START | "_" | "$") ~ XID_CONTINUE* }
 
 /// Whitespace and Comments
 WHITESPACE                  = _{ (" " | "\t" | NEWLINE)+ }
@@ -12,30 +12,27 @@ comment_block               = @{ "/*" ~ (!"*/" ~ ANY)* ~ "*/" }
 comment_line                = @{ "//" ~ (!NEWLINE ~ ANY)* }
 
 /// Keywords
-let_leyword                 =  { "let" }
 mut_keyword                 =  { "mut" }
 const_keyword               =  { "const" }
-return_keyword              =  { "return" }
 unsafe_keyword              =  { "unsafe" }
-if_keyword                  =  { "if" }
-else_keyword                =  { "else" }
-while_keyword               =  { "while" }
-for_keyword                 =  { "for" }
-in_keyword                  =  { "in" }
-fn_keyword                  =  { "fn" }
-as_keyword                  =  { "as" }
-struct_keyword              =  { "struct" }
-
-/// Bindings and accesses
-binding                     =  { destructure | (mut_keyword? ~ ident) }
-
-destructure                 =  { array_destructure | tuple_destructure | struct_destructure }
+let_leyword                 = _{ "let" }
+return_keyword              = _{ "return" }
+if_keyword                  = _{ "if" }
+else_keyword                = _{ "else" }
+while_keyword               = _{ "while" }
+loop_keyword                = _{ "loop" }
+for_keyword                 = _{ "for" }
+in_keyword                  = _{ "in" }
+fn_keyword                  = _{ "fn" }
+as_keyword                  = _{ "as" }
+struct_keyword              = _{ "struct" }
+break_keyword               = _{ "break" }
 
 /// Types
-typespec                    = _{ colon ~ ty }
+typespec                    =  { colon ~ ty }
 
 ty                          = _{ array_ty | tuple_ty | ptr_ty | ident }
-ptr_ty                      =  { dereference ~ (const_keyword | mut_keyword) ~ ty }
+ptr_ty                      =  { "*" ~ (const_keyword | mut_keyword) ~ ty }
 
 /// Functions
 
@@ -55,10 +52,14 @@ stmt                        = _{ item | local | (expr ~ semicolon?) }
 
 local                       =  { let_leyword ~ binding ~ typespec? ~ (assign ~ expr)? ~ semicolon }
 
-/// Expressions
-dereferenceable             = _{ accessor_expr | ident }
+/// Bindings and accesses
+binding                     =  { destructure | (mut_keyword? ~ ident) }
 
-expr                        =  { cast_expr | assign_expr | return_expr | while_loop | for_loop | basic_expr }
+destructure                 =  { array_destructure | tuple_destructure | struct_destructure }
+
+
+/// Expressions
+expr                        =  { cast_expr | assign_expr | return_expr | break_expr | while_loop | for_loop | inf_loop | basic_expr }
 
 basic_expr                  = _{ infix | inner_expr }
 
@@ -81,7 +82,7 @@ cast_expr                   =  { basic_expr ~ (as_keyword ~ ty)+ }
 prefix                      =  { unary_operator ~ inner_expr }
 infix                       =  { inner_expr ~ (binary_operator ~ inner_expr)+ }
 
-braced_expr                 =  { open_paren ~ expr ~ close_paren }
+braced_expr                 = _{ open_paren ~ expr ~ close_paren }
 
 field_access                =  { "." ~ (ident | decinteger) }
 array_access                =  { open_square ~ expr ~ close_square }
@@ -89,7 +90,9 @@ array_access                =  { open_square ~ expr ~ close_square }
 accessor_expr               =  { accessible_expr ~ (field_access | array_access)+} // x.0.y[1].z[4].w.etc
 
 return_expr                 =  { return_keyword ~ expr }
-assign_expr                 =  { dereferenceable ~ assign_operator ~ expr }
+break_expr                  =  { break_keyword ~ ident? ~ expr? }
+
+assign_expr                 =  { (accessor_expr | ident) ~ assign_operator ~ expr }
 
 /// Conditionals
 if_expr                     =  { if_keyword ~ expr ~ code_block ~ if_else? }
@@ -97,8 +100,9 @@ if_else                     =  { else_keyword ~ (if_expr | code_block)}
 
 /// Loops
 loop_label                  =  { "'" ~ ident }
-while_loop                  =  { loop_label? ~ while_keyword                    ~ expr ~ code_block }
-for_loop                    =  { loop_label? ~ for_keyword ~ ident ~ in_keyword ~ expr ~ code_block }
+while_loop                  =  { loop_label? ~ while_keyword                      ~ expr ~ code_block }
+for_loop                    =  { loop_label? ~ for_keyword ~ binding ~ in_keyword ~ expr ~ code_block }
+inf_loop                    =  { loop_label? ~ loop_keyword                              ~ code_block }
 
 /// Arrays
 array                       = _{ array_lit | array_splat }
@@ -121,7 +125,7 @@ struct_construct_field      =  { ident ~ colon ~ expr }
 struct_construct_fields     = _{ (struct_construct_field ~ comma)* ~ struct_construct_field? }
 struct_construct_expr       =  { ident ~ open_block ~ struct_construct_fields ~ close_block }
 
-struct_destructure_field    =  { ident ~ (colon ~ binding)? }
+struct_destructure_field    =  { (mut_keyword ~ ident) | (ident ~ (colon ~ binding)?) }
 struct_destructure_fields   = _{ (struct_destructure_field ~ comma)* ~ struct_destructure_field? }
 struct_destructure          =  { ident ~ open_block ~ struct_destructure_fields ~ close_block }
 
@@ -214,5 +218,5 @@ assign_operator             =  {(
                                 plus | minus |
                                 shift_left | shift_right |
                                 bitwise_and | bitwise_or | bitwise_xor
-                            )? ~ "="}
+                            )? ~ assign}
 
