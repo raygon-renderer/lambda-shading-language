@@ -27,7 +27,7 @@ pub fn unsafe_code_block(pair: Pair<Rule>) -> ParseResult<CodeBlock> {
             code_block.is_unsafe = true;
             code_block
         }
-        Rule::code_block => code_block(block.next_token()?)?,
+        Rule::code_block => code_block(unsafe_keyword_or_code_block)?,
         _ => return Err(ParseError::UnexpectedToken(unsafe_keyword_or_code_block)),
     })
 }
