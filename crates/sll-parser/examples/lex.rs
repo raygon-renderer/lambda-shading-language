@@ -2,7 +2,7 @@
 
 use pest::Parser;
 
-use sll_parser::ast::parse;
+use sll_parser::{ast::parse, Grammar};
 
 fn main() {
     let test = r##"
@@ -76,9 +76,13 @@ fn add(x: i32, y: i32) -> i32 {
     unsafe fn test(mut x: i32, Test {x: mut i, k}: (u32,)) -> i32 {
         let mut x: i32 = 10;
 
-        x.0[0-1].x += 10;
+        x.0[0-1].x().x += 10;
+
+        x.test(x+1).0;
     }
     "##;
+
+    //println!("{:#?}", Grammar::parse(Rule::file, test2));
 
     println!("{:#?}", parse(test2).unwrap());
 }

@@ -51,9 +51,9 @@ pub fn infix(pair: Pair<Rule>) -> ParseResult<Expression> {
         |pair| expr(pair),
         |lhs: ParseResult<Expression>, op: Pair<Rule>, rhs: ParseResult<Expression>| {
             Ok(Expression::Binary {
-                lhs: Box::new(lhs?),
+                lhs: lhs?.boxed(),
                 op: binary_op(op)?,
-                rhs: Box::new(rhs?),
+                rhs: rhs?.boxed(),
             })
         },
     )

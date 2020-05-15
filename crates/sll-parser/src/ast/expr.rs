@@ -10,7 +10,10 @@ pub enum Expression {
         rhs: Box<Expression>,
     },
     Cast(Box<Expression>, Vec<Type>),
-    FunctionCall(Ident, Vec<Expression>),
+    FunctionCall(Box<Expression>, Vec<Expression>),
+    FieldAccess(Box<Expression>, Ident),
+    TupleAccess(Box<Expression>, usize),
+    ArrayAccess(Box<Expression>, Box<Expression>),
     CodeBlock(CodeBlock),
     Tuple(Vec<Expression>),
     Array(ArrayExpr),
@@ -40,7 +43,7 @@ pub enum Expression {
         value: Option<Box<Expression>>,
     },
     Return(Option<Box<Expression>>),
-    Assign(AccessorExpr, AssignOp, Box<Expression>),
+    Assign(Box<Expression>, AssignOp, Box<Expression>),
 }
 
 impl Expression {
@@ -55,19 +58,6 @@ pub enum ArrayExpr {
     Splat { value: Box<Expression>, len: Box<Expression> },
 }
 
-#[derive(Debug, Clone)]
-pub enum AccessExpr {
-    FieldAccess(Ident),
-    TupleAccess(usize),
-    ArrayAccess(Box<Expression>),
-}
-
-#[derive(Debug, Clone)]
-pub enum AccessorExpr {
-    Local(Ident),
-    Accessed { base: Box<Expression>, accesses: Vec<AccessExpr> },
-}
-
 pub fn expr(pair: Pair<Rule>) -> ParseResult<Expression> {
     Ok(match pair.as_rule() {
         // expr just wraps generic expressions
@@ -77,49 +67,39 @@ pub fn expr(pair: Pair<Rule>) -> ParseResult<Expression> {
         Rule::infix => infix(pair)?,
         Rule::unsafe_code_block => Expression::CodeBlock(unsafe_code_block(pair)?),
         Rule::assign_expr => assign(pair)?,
+        Rule::deref_expr => deref_expr(pair)?,
         _ => return Err(ParseError::UnexpectedToken(pair)),
     })
 }
 
-pub fn assign(pair: Pair<Rule>) -> ParseResult<Expression> {
-    let mut assign = pair.into_inner();
-
-    let ident_or_accessor = assign.next_token()?;
-
-    let accessor = match ident_or_accessor.as_rule() {
-        Rule::ident => AccessorExpr::Local(ident(ident_or_accessor)?),
-        Rule::accessor_expr => accessor_expr(ident_or_accessor)?,
-        _ => return Err(ParseError::UnexpectedToken(ident_or_accessor)),
-    };
-
-    let op = assign_op(assign.next_token()?)?;
-    let value = expr(assign.next_token()?)?;
-
-    Ok(Expression::Assign(accessor, op, Box::new(value)))
-}
-
-pub fn accessor_expr(pair: Pair<Rule>) -> ParseResult<AccessorExpr> {
+pub fn deref_expr(pair: Pair<Rule>) -> ParseResult<Expression> {
     let mut accessor = pair.into_inner();
 
-    let base = expr(accessor.next_token()?)?.boxed();
+    // get base expression to start with
+    let mut access = expr(accessor.next_token()?)?;
 
-    let mut accesses = Vec::new();
-
-    while let Some(field_or_array_access) = accessor.next() {
-        accesses.push(match field_or_array_access.as_rule() {
+    while let Some(next_access) = accessor.next() {
+        access = match next_access.as_rule() {
             Rule::field_access => {
-                let ident_or_index = field_or_array_access.into_inner().next_token()?;
+                let ident_or_index = next_access.into_inner().next_token()?;
 
                 match ident_or_index.as_rule() {
-                    Rule::ident => AccessExpr::FieldAccess(ident(ident_or_index)?),
-                    Rule::decinteger => AccessExpr::TupleAccess(ident_or_index.as_str().parse::<usize>()?),
+                    Rule::ident => Expression::FieldAccess(access.boxed(), ident(ident_or_index)?),
+                    Rule::decinteger => Expression::TupleAccess(access.boxed(), ident_or_index.as_str().parse::<usize>()?),
                     _ => return Err(ParseError::UnexpectedToken(ident_or_index)),
                 }
             }
-            Rule::array_access => AccessExpr::ArrayAccess(expr(field_or_array_access.into_inner().next_token()?)?.boxed()),
-            _ => return Err(ParseError::UnexpectedToken(field_or_array_access)),
-        });
+            Rule::array_access => Expression::ArrayAccess(access.boxed(), expr(next_access.into_inner().next_token()?)?.boxed()),
+            Rule::function_call => {
+                let mut params = Vec::new();
+                for param in next_access.into_inner() {
+                    params.push(expr(param)?);
+                }
+                Expression::FunctionCall(access.boxed(), params)
+            }
+            _ => return Err(ParseError::UnexpectedToken(next_access)),
+        };
     }
 
-    Ok(AccessorExpr::Accessed { base, accesses })
+    Ok(access)
 }
