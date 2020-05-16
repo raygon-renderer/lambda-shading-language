@@ -78,9 +78,37 @@ fn add(x: i32, y: i32) -> i32 {
 
         x.0[0-1].x().x += 10;
 
-        x.test(x+1).0;
+        let z: i32 = &mut x.test(y+1)[3].0;
+
+        'test: while z < 10 {
+            *z.test += 1;
+        }
+
+        unsafe {
+            let x = 'test: loop {
+                break 'test value;
+            };
+        }
+
+        for i in 0..len + 1 {
+
+        }
+
+        if x < 10 {
+            if x < 10 {
+                x += 1;
+            } else if true {
+                x = [1; 10];
+            } else {
+                x -= 1;
+            }
+        }
+
+        let k = Test { x: 1, y };
     }
     "##;
+
+    let a = [1, 2, 3, 4];
 
     //println!("{:#?}", Grammar::parse(Rule::file, test2));
 

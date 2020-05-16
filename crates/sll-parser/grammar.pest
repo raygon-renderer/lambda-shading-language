@@ -71,13 +71,14 @@ dereferenceable_expr        = _{
                                 | struct_construct_expr
                                 | array
                                 | tuple
+                                | reference_expr
                                 | prefix
                                 | literal
                                 | ident
                             }
 
 cast_expr                   =  { basic_expr ~ (as_keyword ~ ty)+ }
-prefix                      =  { unary_operator ~ inner_expr }
+prefix                      =  { unary_operator ~ expr }
 infix                       =  { inner_expr ~ (binary_operator ~ inner_expr)+ }
 
 braced_expr                 = _{ open_paren ~ expr ~ close_paren }
@@ -85,27 +86,33 @@ braced_expr                 = _{ open_paren ~ expr ~ close_paren }
 field_access                =  { "." ~ (ident | decinteger) }
 array_access                =  { open_square ~ expr ~ close_square }
 
-deref_expr                  =  { dereferenceable_expr ~ (field_access | array_access | function_call)+} // x.0.h().y[1].z[4].w(x).etc
+reference_expr              =  { "&" ~ mut_keyword? ~ expr }
+dereference                 =  { "*" } // not silent to differentiate implicit/explicit deref
+
+implicit_deref_expr         = _{ dereferenceable_expr ~ (field_access | array_access | function_call)+} // x.0.h().y[1].z[4].w(x).etc
+explicit_deref_expr         = _{ dereference ~ inner_expr }
+
+deref_expr                  =  { implicit_deref_expr | explicit_deref_expr }
 function_call               =  { open_paren ~ (expr ~ comma)* ~ expr? ~ close_paren }
 
 return_expr                 =  { return_keyword ~ expr }
-break_expr                  =  { break_keyword ~ ident? ~ expr? }
+break_expr                  =  { break_keyword ~ ("'" ~ ident)? ~ expr? }
 
 assign_expr                 =  { (deref_expr | ident) ~ assign_operator ~ expr }
 
 /// Conditionals
 if_expr                     =  { if_keyword ~ expr ~ code_block ~ if_else? }
-if_else                     =  { else_keyword ~ (if_expr | code_block)}
+if_else                     = _{ else_keyword ~ (if_expr | code_block)}
 
 /// Loops
-loop_label                  =  { "'" ~ ident }
+loop_label                  = _{ "'" ~ ident ~ ":" }
 while_loop                  =  { loop_label? ~ while_keyword                      ~ expr ~ code_block }
 for_loop                    =  { loop_label? ~ for_keyword ~ binding ~ in_keyword ~ expr ~ code_block }
 inf_loop                    =  { loop_label? ~ loop_keyword                              ~ code_block }
 
 /// Arrays
 array                       = _{ array_lit | array_splat }
-array_lit                   =  { open_square ~ (expr ~ (comma ~ expr)*)?     ~ close_square }
+array_lit                   =  { open_square ~ (expr ~ comma)*  ~ expr?      ~ close_square }
 array_splat                 =  { open_square ~ expr ~ semicolon ~ expr       ~ close_square }
 array_ty                    =  { open_square ~ ty   ~ semicolon ~ expr       ~ close_square }
 array_destructure           =  { open_square ~ (binding ~ comma)+ ~ binding? ~ close_square }
@@ -120,7 +127,7 @@ struct_field                =  { ident ~ typespec }
 struct_fields               = _{ (struct_field ~ comma)* ~ struct_field? }
 struct_decl                 =  { struct_keyword ~ ident ~ open_block ~ struct_fields ~ close_block }
 
-struct_construct_field      =  { ident ~ colon ~ expr }
+struct_construct_field      =  { ident ~ (colon ~ expr)? }
 struct_construct_fields     = _{ (struct_construct_field ~ comma)* ~ struct_construct_field? }
 struct_construct_expr       =  { ident ~ open_block ~ struct_construct_fields ~ close_block }
 
@@ -175,8 +182,6 @@ boolean_true                =  { "true" }
 boolean_false               =  { "false" }
 
 /// Operators
-reference                   =  { "&" ~ mut_keyword? }
-dereference                 =  { "*" }
 multiply                    =  { "*" }
 divide                      =  { "/" }
 modulus                     =  { "%" }
@@ -199,7 +204,7 @@ bitwise_xor                 =  { "^" }
 assign                      =  { "=" }
 range                       =  { ".." }
 
-unary_operator              = _{ reference | dereference | plus | minus | logical_not }
+unary_operator              = _{ plus | minus | logical_not }
 binary_operator             = _{
                                 multiply | divide | modulus |
                                 plus | minus |
