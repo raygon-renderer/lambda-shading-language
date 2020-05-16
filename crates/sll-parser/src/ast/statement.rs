@@ -18,9 +18,7 @@ pub fn statement(pair: Pair<Rule>) -> ParseResult<Statement> {
             let mut assignment = None;
 
             loop {
-                let typespec_or_assignemnt_or_none = local.next();
-
-                if let Some(typespec_or_assignment) = typespec_or_assignemnt_or_none {
+                if let Some(typespec_or_assignment) = local.next() {
                     match typespec_or_assignment.as_rule() {
                         Rule::typespec => {
                             ty = typespec(typespec_or_assignment)?;
@@ -33,6 +31,8 @@ pub fn statement(pair: Pair<Rule>) -> ParseResult<Statement> {
                         _ => return Err(ParseError::UnexpectedToken(typespec_or_assignment)),
                     }
                 }
+
+                break;
             }
 
             Statement::Local(binding, ty, assignment)
