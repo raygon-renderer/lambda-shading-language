@@ -38,6 +38,7 @@ pub fn statement(pair: Pair<Rule>) -> ParseResult<Statement> {
             Statement::Local(binding, ty, assignment)
         }
         Rule::expr => Statement::Expr(expr(pair)?),
+        Rule::item => Statement::Item(item(pair)?),
         _ => return Err(ParseError::UnexpectedToken(pair)),
     })
 }
