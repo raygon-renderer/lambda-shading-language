@@ -2,7 +2,6 @@ mod assign;
 mod binary_op;
 mod binding;
 mod code_block;
-mod destructure;
 mod expr;
 mod function;
 mod ident;
@@ -14,8 +13,8 @@ mod types;
 mod unary_op;
 
 pub use self::{
-    assign::*, binary_op::*, binding::*, code_block::*, destructure::*, expr::*, function::*, ident::*, item::*, literal::*, statement::*,
-    structure::*, types::*, unary_op::*,
+    assign::*, binary_op::*, binding::*, code_block::*, expr::*, function::*, ident::*, item::*, literal::*, statement::*, structure::*, types::*,
+    unary_op::*,
 };
 
 pub(crate) use pest::{
