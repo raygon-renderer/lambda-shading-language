@@ -74,7 +74,7 @@ fn add(x: i32, y: i32) -> i32 {
     const TEST: *const u32 = 1 + 0xF1;
 
     unsafe fn test(mut x: i32, Test {x: mut i, k}: (u32,)) -> i32 {
-        let mut x: i32 = 10;
+        let mut x: i32 = Test::value::x();
 
         x.0[0-1].x().x += 10;
 
@@ -105,10 +105,18 @@ fn add(x: i32, y: i32) -> i32 {
         }
 
         let k = Test { x: 1, y };
+
+        struct Test {
+            x: i32,
+        }
+
+        fn test(&self) {
+            let Test { mut x } = *self;
+        }
+
+        Test::func.call::<i32<Test::i9>>();
     }
     "##;
-
-    let a = [1, 2, 3, 4];
 
     //println!("{:#?}", Grammar::parse(Rule::file, test2));
 

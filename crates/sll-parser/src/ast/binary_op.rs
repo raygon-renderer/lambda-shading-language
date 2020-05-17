@@ -45,15 +45,15 @@ lazy_static::lazy_static! {
     };
 }
 
-pub fn infix(pair: Pair<Rule>) -> ParseResult<Expression> {
+pub fn infix<'a, 'i>(arena: &'a Bump, pair: Pair<'i, Rule>) -> ParseResult<'i, Expression<'a>> {
     PREC_CLIMBER.climb(
         pair.into_inner(),
-        |pair| expr(pair),
-        |lhs: ParseResult<Expression>, op: Pair<Rule>, rhs: ParseResult<Expression>| {
+        |pair| expr(arena, pair),
+        |lhs: ParseResult<Expression<'a>>, op: Pair<'i, Rule>, rhs: ParseResult<Expression<'a>>| {
             Ok(Expression::Binary {
-                lhs: lhs?.boxed(),
+                lhs: lhs?.boxed(arena),
                 op: binary_op(op)?,
-                rhs: rhs?.boxed(),
+                rhs: rhs?.boxed(arena),
             })
         },
     )

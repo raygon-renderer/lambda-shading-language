@@ -1,35 +1,47 @@
 use super::*;
 
 #[derive(Debug, Clone)]
-pub enum Type {
-    Array(Box<ArrayType>),
-    Tuple(Vec<Type>),
-    Ptr(Box<PointerType>),
-    Named(Ident),
+pub struct BoundedType<'a> {
+    pub ty: Type<'a>,
+    pub bounds: BumpVec<'a, ()>,
+}
+
+#[derive(Debug, Clone)]
+pub enum Type<'a> {
+    /// Array type with an element type and constant expression for length
+    Array { element: &'a Type<'a>, len: &'a Expression<'a> },
+
+    /// Tuple type made up of made types
+    Tuple(BumpVec<'a, Type<'a>>),
+
+    /// Reference type
+    Ref { mutable: bool, ty: &'a Type<'a> },
+
+    /// Named type, including primitives
+    Named(Ident<'a>),
+
+    /// Generic type with specified parameter types
+    Generic { base: &'a Type<'a>, params: BumpVec<'a, Type<'a>> },
+
+    /// Inferred type to be deduced by the compiler
     Inferred,
 }
 
-#[derive(Debug, Clone)]
-pub struct ArrayType {
-    pub element: Type,
-    pub len: Expression,
+impl<'a> Type<'a> {
+    pub fn boxed(self, arena: &'a Bump) -> &'a Type<'a> {
+        arena.alloc(self)
+    }
 }
 
-#[derive(Debug, Clone)]
-pub struct PointerType {
-    pub mutable: bool,
-    pub ty: Type,
-}
-
-pub fn typespec(pair: Pair<Rule>) -> ParseResult<Type> {
+pub fn typespec<'a, 'i>(arena: &'a Bump, pair: Pair<'i, Rule>) -> ParseResult<'i, Type<'a>> {
     Ok(match pair.as_rule() {
-        Rule::typespec => return typespec(pair.into_inner().next_token()?),
-        Rule::ident => Type::Named(ident(pair)?),
+        Rule::typespec => return typespec(arena, pair.into_inner().next_token()?),
+        Rule::ident => Type::Named(ident(arena, pair)?),
         Rule::tuple_ty => {
-            let mut tys = Vec::new();
+            let mut tys = BumpVec::new_in(arena);
 
             for pair in pair.into_inner() {
-                tys.push(typespec(pair)?);
+                tys.push(typespec(arena, pair)?);
             }
 
             Type::Tuple(tys)
@@ -37,25 +49,38 @@ pub fn typespec(pair: Pair<Rule>) -> ParseResult<Type> {
         Rule::array_ty => {
             let mut array_ty = pair.into_inner();
 
-            let element = typespec(array_ty.next_token()?)?;
-            let len = expr(array_ty.next_token()?)?;
+            let element = typespec(arena, array_ty.next_token()?)?.boxed(arena);
+            let len = expr(arena, array_ty.next_token()?)?.boxed(arena);
 
-            Type::Array(Box::new(ArrayType { element, len }))
+            Type::Array { element, len }
         }
-        Rule::ptr_ty => {
-            let mut ptr_ty = pair.into_inner();
+        Rule::ref_ty => {
+            let mut mutable = false;
+            let mut ty = None;
 
-            let mutability = ptr_ty.next_token()?;
+            for pair in pair.into_inner() {
+                match pair.as_rule() {
+                    Rule::mut_keyword => mutable = true,
+                    _ => ty = Some(typespec(arena, pair)?.boxed(arena)),
+                }
+            }
 
-            let mutable = match mutability.as_rule() {
-                Rule::mut_keyword => true,
-                Rule::const_keyword => false,
-                _ => return Err(ParseError::UnexpectedToken(mutability)),
-            };
+            Type::Ref {
+                mutable,
+                ty: ty.ok_or(ParseError::MissingToken)?,
+            }
+        }
+        Rule::generic_ty => {
+            let mut generic_ty = pair.into_inner();
 
-            let ty = typespec(ptr_ty.next_token()?)?;
+            let base = typespec(arena, generic_ty.next_token()?)?.boxed(arena);
+            let mut params = BumpVec::new_in(arena);
 
-            Type::Ptr(Box::new(PointerType { mutable, ty }))
+            for pair in generic_ty {
+                params.push(typespec(arena, pair)?);
+            }
+
+            Type::Generic { base, params }
         }
         _ => return Err(ParseError::UnexpectedToken(pair)),
     })

@@ -1,68 +1,68 @@
 use super::*;
 
 #[derive(Debug, Clone)]
-pub struct Structure {
-    pub fields: Vec<StructureField>,
+pub struct Structure<'a> {
+    pub fields: BumpVec<'a, StructureField<'a>>,
 }
 
 #[derive(Debug, Clone)]
-pub struct StructureField {
-    pub name: Ident,
-    pub ty: Type,
+pub struct StructureField<'a> {
+    pub name: Ident<'a>,
+    pub ty: Type<'a>,
 }
 
 #[derive(Debug, Clone)]
-pub enum StructureConstructField {
-    Captured(Ident),
-    Explicit { name: Ident, value: Box<Expression> },
+pub enum StructureConstructField<'a> {
+    Captured(Ident<'a>),
+    Explicit { name: Ident<'a>, value: &'a Expression<'a> },
 }
 
 #[derive(Debug, Clone)]
-pub struct StructureDestructureField {
-    pub ident: Ident,
-    pub binding: Binding,
+pub struct StructureDestructureField<'a> {
+    pub name: Ident<'a>,
+    pub binding: Binding<'a>,
 }
 
 #[derive(Debug, Clone)]
-pub struct StructureDestructure {
-    pub ident: Ident,
-    pub fields: Vec<StructureDestructureField>,
+pub struct StructureDestructure<'a> {
+    pub name: Ident<'a>,
+    pub fields: BumpVec<'a, StructureDestructureField<'a>>,
 }
 
-pub fn struct_decl(item: Pair<Rule>) -> ParseResult<Structure> {
-    let mut fields = Vec::new();
+pub fn struct_decl<'a, 'i>(arena: &'a Bump, item: Pair<'i, Rule>) -> ParseResult<'i, Structure<'a>> {
+    let mut fields = BumpVec::new_in(arena);
 
     for field in item.into_inner().filter(|pair| pair.as_rule() == Rule::struct_field) {
         let mut field = field.into_inner();
 
         fields.push(StructureField {
-            name: ident(field.next_token()?)?,
-            ty: typespec(field.next_token()?)?,
+            name: ident(arena, field.next_token()?)?,
+            ty: typespec(arena, field.next_token()?)?,
         });
     }
 
     Ok(Structure { fields })
 }
 
-pub fn struct_construct(pair: Pair<Rule>) -> ParseResult<Expression> {
+pub fn struct_construct<'a, 'i>(arena: &'a Bump, pair: Pair<'i, Rule>) -> ParseResult<'i, Expression<'a>> {
     let mut construct = pair.into_inner();
 
-    let name = ident(construct.next_token()?)?;
+    let name = ident(arena, construct.next_token()?)?;
 
-    let mut fields = Vec::new();
+    let mut fields = BumpVec::new_in(arena);
 
     for pair in construct {
         match pair.as_rule() {
             Rule::struct_construct_field => {
                 let mut construct_field = pair.into_inner();
 
-                let name = ident(construct_field.next_token()?)?;
+                let name = ident(arena, construct_field.next_token()?)?;
 
                 fields.push(match construct_field.next() {
                     None => StructureConstructField::Captured(name),
                     Some(pair) => StructureConstructField::Explicit {
                         name,
-                        value: expr(pair)?.boxed(),
+                        value: expr(arena, pair)?.boxed(arena),
                     },
                 });
             }
@@ -73,60 +73,42 @@ pub fn struct_construct(pair: Pair<Rule>) -> ParseResult<Expression> {
     Ok(Expression::Struct { name, fields })
 }
 
-pub fn struct_destructure(pair: Pair<Rule>) -> ParseResult<StructureDestructure> {
-    let mut fields = Vec::new();
-
-    //println!("{:#?}", pair);
-
+pub fn struct_destructure<'a, 'i>(arena: &'a Bump, pair: Pair<'i, Rule>) -> ParseResult<'i, StructureDestructure<'a>> {
     let mut struct_destructure = pair.into_inner();
 
-    let name = ident(struct_destructure.next_token()?)?;
+    let name = ident(arena, struct_destructure.next_token()?)?;
+
+    let mut fields = BumpVec::new_in(arena);
 
     for pair in struct_destructure {
-        match pair.as_rule() {
-            Rule::struct_destructure_field => {
-                let mut struct_destructure_field = pair.into_inner();
+        if pair.as_rule() != Rule::struct_destructure_field {
+            return Err(ParseError::UnexpectedToken(pair));
+        }
 
-                let mut_keyword_or_ident = struct_destructure_field.next_token()?;
+        let mut struct_destructure_field = pair.into_inner();
 
-                match mut_keyword_or_ident.as_rule() {
-                    Rule::mut_keyword => {
-                        let field_name = ident(struct_destructure_field.next_token()?)?;
+        let ident_or_named_binding = struct_destructure_field.next_token()?;
 
-                        fields.push(StructureDestructureField {
-                            ident: field_name.clone(),
-                            binding: Binding::Named {
-                                mutable: true,
-                                ident: field_name,
-                            },
-                        });
-                    }
-                    Rule::ident => {
-                        let field_name = ident(mut_keyword_or_ident)?;
+        fields.push(match ident_or_named_binding.as_rule() {
+            Rule::named_binding => {
+                let named_binding = named_binding(arena, ident_or_named_binding)?;
 
-                        // check if there is a binding
-                        match struct_destructure_field.next() {
-                            Some(pair) => {
-                                fields.push(StructureDestructureField {
-                                    ident: field_name,
-                                    binding: binding(pair)?,
-                                });
-                            }
-                            None => fields.push(StructureDestructureField {
-                                ident: field_name.clone(),
-                                binding: Binding::Named {
-                                    mutable: false,
-                                    ident: field_name,
-                                },
-                            }),
-                        }
-                    }
-                    _ => return Err(ParseError::UnexpectedToken(mut_keyword_or_ident)),
+                match named_binding {
+                    Binding::Named { ref name, .. } => StructureDestructureField {
+                        name: name.clone(),
+                        binding: named_binding,
+                    },
+                    _ => panic!("Expected Binding::Named, found {:?} instead", named_binding),
                 }
             }
-            _ => return Err(ParseError::UnexpectedToken(pair)),
-        }
+            // if it's not an implicit named binding, and starts with an ident, it's assumed to be an explicit binding
+            Rule::ident => StructureDestructureField {
+                name: ident(arena, ident_or_named_binding)?,
+                binding: binding(arena, struct_destructure_field.next_token()?)?,
+            },
+            _ => return Err(ParseError::UnexpectedToken(ident_or_named_binding)),
+        });
     }
 
-    Ok(StructureDestructure { ident: name, fields })
+    Ok(StructureDestructure { name, fields })
 }

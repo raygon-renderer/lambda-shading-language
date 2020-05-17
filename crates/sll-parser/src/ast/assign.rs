@@ -15,21 +15,21 @@ pub enum AssignOp {
     BitwiseXor,
 }
 
-pub fn assign(pair: Pair<Rule>) -> ParseResult<Expression> {
+pub fn assign<'a, 'i>(arena: &'a Bump, pair: Pair<'i, Rule>) -> ParseResult<'i, Expression<'a>> {
     let mut assign = pair.into_inner();
 
     let ident_or_deref = assign.next_token()?;
 
     let access = match ident_or_deref.as_rule() {
-        Rule::ident => Expression::Ident(ident(ident_or_deref)?),
-        Rule::deref_expr => deref_expr(ident_or_deref)?,
+        Rule::ident => Expression::Ident(ident(arena, ident_or_deref)?),
+        Rule::deref_expr => deref_expr(arena, ident_or_deref)?,
         _ => return Err(ParseError::UnexpectedToken(ident_or_deref)),
     };
 
     let op = assign_op(assign.next_token()?)?;
-    let value = expr(assign.next_token()?)?;
+    let value = expr(arena, assign.next_token()?)?;
 
-    Ok(Expression::Assign(access.boxed(), op, value.boxed()))
+    Ok(Expression::Assign(access.boxed(arena), op, value.boxed(arena)))
 }
 
 pub fn assign_op(pair: Pair<Rule>) -> ParseResult<AssignOp> {
